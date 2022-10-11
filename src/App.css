@@ -37,6 +37,14 @@
 }
 
 
+.BGHoverable {
+  background-color: 'transparent;';
+}
+.BGHoverable:hover {
+  background-color: 'grey';
+}
+
+
 *:focus {
     outline: none;
 }

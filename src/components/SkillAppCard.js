@@ -3,86 +3,187 @@ import { motion, useMotionValue, useSpring, useScroll } from "framer-motion";
 // import * as Animatable from 'react-native-animatable';
 import autobind from "class-autobind";
 import './scrollbar.css';
+import './card.css';
 import RisingDiv from "./RisingDiv.js"
 import {CorrectnessToggler, SmallCorrectnessToggler} from "./CorrectnessToggler.js"
+import {useStore, useChangedStore} from "../globalstate.js"
+import {shallowEqual} from "../utils.js"
 
-export function SkillAppGroup({x, y, parentRef, skill_apps,
-  only_show_focused_index, focusCallback, staged_index,
-  focus_index, style,
+
+const images = {
+  double_chevron : require('../img/double_chevron_300x400.png')
+};
+
+
+
+const FeedbackCounters = ({sel, groupHasHover}) => {
+  let [counts, isExternalHasOnly] = useChangedStore(
+      [[(s)=>{
+        let counts = {'undef' : 0, 'correct_only' : 0, 'correct' :0, 'incorrect':0}
+        for(let id of s.sel_skill_app_ids?.[sel] ?? []){
+          let sa = s.skill_apps[id]
+          if(sa.reward == 0){
+            counts.undef++
+          }else if(sa.reward > 0){
+            if(sa.only){
+              counts.correct_only++
+            }else{
+              counts.correct++
+            }
+          }else{
+            counts.incorrect++
+          }
+        }
+        return counts
+      },(o,n)=>{
+        return shallowEqual(o,n)
+      }
+      ],"@only_count!=0"]
+  )
+
+  // If any are correct_only mark all undefined as incorrect 
+  if(isExternalHasOnly){
+    counts.incorrect += counts.undef  
+    counts.undef = 0
+  }
+  
+
+
+  return (
+  <div style={{
+    ...styles.feedback_counters,
+    // ...(groupHasHover && {backgroundColor: 'rgba(120, 120, 120, .1)'})
+    }}
+    onClick={()=>{}}
+  >  
+    {counts.undef != 0 && 
+    <div style={styles.counter_container}
+      onClick={()=>{}}
+    >
+      <a style={{color: 'black'}}>━</a>
+      {counts.undef}
+    </div>
+    }
+
+    {counts.correct_only != 0 && 
+    <div style={styles.counter_container}
+      onClick={()=>{}}
+    >
+      <a style={{fontSize: 8, color: 'limegreen'}}>⦿</a>
+      {counts.correct_only}
+    </div>
+    }
+
+    {counts.correct != 0 && 
+    <div style={styles.counter_container}
+      onClick={()=>{}}
+    >
+      <a style={{color: 'limegreen'}}>✔</a>
+      {counts.correct}
+    </div>
+    }
+
+    {counts.incorrect != 0 && 
+    <div style={styles.counter_container}
+      onClick={()=>{}}
+    >
+      <a style={{color: 'red'}}>✖</a>
+      {counts.incorrect}
+    </div>
+    }
+    
+  </div>
+  )
+
+}
+
+
+export function SkillAppGroup({x, y, parentRef, sel,
+  // skill_apps,only_show_focused_index, focusCallback, staged_index, focus_index,
+   style,
   ...props}) {
-  const [is_hover, setIsHover] = useState(false)
+  
+
+  let [hasFocus, skill_app_ids, hasHover, focus_id, 
+        setFocus, setHover] = useChangedStore(
+      [`@focus_sel==${sel}`, `@sel_skill_app_ids.${sel}`, `@hover_sel==${sel}`, `focus_id`, 
+       "setFocus", "setHover"]
+  )
+
+  // const [is_hover, setIsHover] = useState(false)
 
   const ref = useRef(null);
   const x_anim = useMotionValue(x || 0)
   const y_anim = useMotionValue(y || 0)
 
-  const isDragging = useRef(false);
+  const groupIsDragging = useRef(false);
 
   //Ensure that there are refs for all cards
   const cardsRef = useRef([]);
   useEffect(() => {
-       cardsRef.current = cardsRef.current.slice(0, skill_apps.length);
+       cardsRef.current = cardsRef.current.slice(0, skill_app_ids.length);
 
-  }, [skill_apps]);
+  }, [skill_app_ids]);
 
   // Effect for focus_index change
-  useEffect(() => {
-    // console.log("Change", focus_index)
-    if(focus_index >= 0){ref.current.focus()}
-    cardsRef.current[focus_index]?.scrollIntoView({behavior:"smooth", "block" : "nearest"})
-  }, [focus_index]);
+  useEffect(() => {    
+    // if(hasFocus){ref.current.focus()}
+    let card = cardsRef.current[skill_app_ids.indexOf(focus_id)]
+    console.log("HAS FOCUS",focus_id)
+    card?.scrollIntoView({behavior:"smooth", "block" : "nearest"})
+  }, [focus_id]);
 
 
-  const keyDownHandler = (e) => {
-    if(e.keyCode >= 49 && e.keyCode <= 58){
-      let index = Math.min(parseInt(e.key)-1, skill_apps.length-1)
-      // scroll_ref.current.
-      // console.log(cardsRef.current)
+  // const keyDownHandler = (e) => {
+  //   if(e.keyCode >= 49 && e.keyCode <= 58){
+  //     let index = Math.min(parseInt(e.key)-1, skill_app_ids.length-1)
       
-      focusCallback({sel: skill_apps[0].selection, index:index})
-      console.log("KEY", e.key, index)  
-    }
-  };
+  //     focusCallback({sel: skill_apps[0].selection, index:index})
+  //     console.log("KEY", e.key, index)  
+  //   }
+  // };
 
   
-  const hasFocus = focus_index >= 0
+  // const hasFocus = focus_index >= 0
 
   let skill_app_cards = []
   let card_refs = []
-  for(let j=0; j < skill_apps.length; j++){
+  for(let j=0; j < skill_app_ids.length; j++){
+    // console.log(skill_app_ids)
     // if(only_show_focused_index && j != focus_index) continue;
-    let skill_app = skill_apps[j]
+    let id = skill_app_ids[j]
   // for (let skill_app of (skill_apps || [])){
 
-    let correct = skill_app.reward > 0 || false
-    let incorrect = skill_app.reward < 0 || false
-    let is_demonstation = skill_app.stu_resp_type == "HINT_REQUEST"
-    let staged = skill_app.is_staged || false
-    let how_text = skill_app.how
+    // let correct = skill_app.reward > 0 || false
+    // let incorrect = skill_app.reward < 0 || false
+    // let is_demonstration = skill_app.stu_resp_type == "HINT_REQUEST"
+    // let staged = skill_app.is_staged || false
+    // let how_text = skill_app.how
     // const card_ref = useRef(null);
     
     skill_app_cards.push(
       <SkillAppCard 
-       correct={correct}
-       incorrect={incorrect}
-       is_demonstation={is_demonstation}
-       staged={staged_index==j}
+       // correct={correct}
+       // incorrect={incorrect}
+       // is_demonstration={is_demonstration}
+       // staged={staged_index==j}
        // using_default_staged={using_default_staged}
-       hasFocus={focus_index==j}
-       showAuxilary={hasFocus || is_hover}
-       skill_app={skill_app}
-       how_text={how_text}
-       text={skill_app.input}
-       focusCallback={focusCallback}
-       sel={skill_app.selection}
+       // hasFocus={focus_index==j}
+       // showAuxilary={hasFocus || is_hover}
+       id={id}
+       // how_text={how_text}
+       // text={skill_app.input}
+       // focusCallback={focusCallback}
+       // sel={skill_app.selection}
+       groupHasHover={hasHover}
        index={j}
-       isDragging={isDragging}
+       groupIsDragging={groupIsDragging}
        // toggleCallback={toggleCallback}
        // stageCallback={stageCallback}
        // removeCallback={removeCallback}
        // foci_mode={foci_mode_index==j}
        // toggleFociModeCallback={toggleFociModeCallback}
-       key={j.toString()}
+       key={id}
        innerRef={el => cardsRef.current[j] = el} 
        {...props}
 
@@ -90,7 +191,9 @@ export function SkillAppGroup({x, y, parentRef, skill_apps,
     )
   }
 
-
+  // (correct && "✔") || 
+  //            (incorrect && "✖") ||
+  //            "━"
 
 
   return (
@@ -98,28 +201,42 @@ export function SkillAppGroup({x, y, parentRef, skill_apps,
           innerRef={ref}
           id='keyboard'
           tabIndex="0"
-          onKeyDown={keyDownHandler}
+          // onKeyDown={keyDownHandler}
           drag
           // dragMomentum={false}
           dragConstraints={parentRef}
           //
           dragTransition={{ timeConstant: 60, power: .15}}
-          onDragStart = {(e) => isDragging.current = true}
-          onDragEnd = {(e) => setTimeout(()=>isDragging.current = false,100)}
-          onMouseEnter={()=>setIsHover(true)}
-          onMouseLeave={()=>setIsHover(false)}
+          onDragStart = {(e) => groupIsDragging.current = true}
+          onDragEnd = {(e) => setTimeout(()=>groupIsDragging.current = false,100)}
+          onMouseEnter={()=>setHover({sel : sel})}
+          onMouseLeave={()=>setHover({sel : ""})}
+          onMouseMove={(e)=>{if(!groupIsDragging.current){e.stopPropagation()}}}
 
           style={{
             ...styles.skill_app_group,
             x : x_anim, y : y_anim,
+            zIndex : groupIsDragging.current && 100 || 1
           }}
           {...props}
         >
-          <div style = {styles.handle}>
-            <div style={{transform: 'rotate(90deg)'}}>
-            {String.fromCharCode(10303)} 
+
+          <div style={{position: 'relative', display: 'flex', flexDirection:"row", alignItems:'center'}}>
+            {/*<div style = {styles.handle}>
+              <div> style={{transform: 'rotate(90deg)'}}>
+              {String.fromCharCode(10303)} 
+              </div>
+            </div>*/}
+
+             
+            <FeedbackCounters sel={sel} groupHasHover={hasHover}/>
+            <div style={{fontSize:10, padding:4, opacity:.6, paddingBottom:0}}>
+              {"⠿"} 
             </div>
+
           </div>
+
+          {((hasFocus || hasHover || groupIsDragging.current) &&
           
           <div className={"scrollable" + (hasFocus && " scrollable_focused" || "")}
                 style={{
@@ -134,6 +251,7 @@ export function SkillAppGroup({x, y, parentRef, skill_apps,
               {skill_app_cards}
             </motion.div>
           </div>
+          )}
           
         </RisingDiv>
     )
@@ -149,15 +267,37 @@ export function DownChevron({style, sep="-23%"}){
 }
 
 
-export function SkillAppCard({skill_app, correct, incorrect, hasFocus, showAuxilary, staged, 
-        foci_mode, stageCallback, focusCallback, toggleFociModeCallback,
-        text, sel, index, is_demonstation, isDragging, style,...props}) {
+const gen_recolor = (color) =>{
+  return {filter:`opacity(.2) drop-shadow(0 0 0 ${color}) drop-shadow(0 0 0 ${color}) drop-shadow(0 0 0 ${color})`}
+}
+
+
+export function SkillAppCard({
+        id, groupIsDragging, groupHasHover, 
+        // skill_app, correct, incorrect, hasFocus, showAuxilary, staged, 
+        // foci_mode, stageCallback, focusCallback, toggleFociModeCallback,
+        // text, sel, index, is_demonstration, groupIsDragging, style,
+        ...props}) {
+  // let id = skill_app_id
+  let [skill_app,            hasFocus,           hasStaged,    isExternalHasOnly,         
+      setFocus,   setHover, setReward, setStaged, undoStaged, setOnly, removeSkillApp] = useChangedStore(
+      [`@skill_apps.${id}`, `@focus_id==${id}`, `@staged_id==${id}`, `@only_count!=0`, 
+      "setFocus", "setHover", 'setReward', 'setStaged', 'undoStaged', 'setOnly', 'removeSkillApp']
+  )
+  // console.log("RERENDER CARD", skill_app.input)
+  let text = skill_app.input || ""
+  let is_demonstration = skill_app.is_demonstration || false
+  let correct = skill_app.reward > 0 
+  let incorrect = skill_app?.reward < 0 || isExternalHasOnly
+  let isImplicit = isExternalHasOnly && skill_app?.reward == 0;
+  let hasOnly = skill_app.only
+
   let minHeight = (hasFocus && 60) || 20
   let maxHeight = (!hasFocus && 20)
   let minWidth = 60//(hasFocus && 60) || 20
   let maxWidth = 140//(hasFocus && 140) || 40
 
-  let bounds_color =  (is_demonstation && 'dodgerblue') ||
+  let bounds_color =  (is_demonstration && 'dodgerblue') ||
                         (correct && colors.c_bounds) || 
                         (incorrect && colors.i_bounds) || 
                         colors.u_bounds
@@ -170,7 +310,7 @@ export function SkillAppCard({skill_app, correct, incorrect, hasFocus, showAuxil
                      }) ||{padding: 2, borderWidth:2}
                      )
 
-  let right_border_color = (is_demonstation && 'dodgerblue') ||
+  let right_border_color = (is_demonstration && 'dodgerblue') ||
                            (correct && colors.c_knob) || 
                            (incorrect && colors.i_knob) || 
                            colors.u_knob
@@ -178,13 +318,26 @@ export function SkillAppCard({skill_app, correct, incorrect, hasFocus, showAuxil
                             borderStyle: "hidden solid hidden hidden",
                             borderRightColor:right_border_color,
                             borderRightWidth:4})
+
+  const toggleReward = () =>{
+    console.log("TOGGLE reward")
+    if(skill_app.reward == 0){
+      setReward(skill_app, 1)
+    }else if(skill_app.reward > 0){
+      setReward(skill_app, -1)
+    }else{
+      setReward(skill_app, 1)
+    }
+  }
   return (
         <RisingDiv 
           onClick={(e)=>{
-            console.log("<<", e)
-            if(!isDragging.current){
-              focusCallback?.({sel,index})}
-            }}
+            // console.log("<<", e)
+            if(!groupIsDragging.current){
+              setFocus(skill_app)
+            }
+            e.stopPropagation()
+          }}
           style={{
             ...styles.skill_app_card,
             ...border_style,
@@ -221,46 +374,89 @@ export function SkillAppCard({skill_app, correct, incorrect, hasFocus, showAuxil
           }
             
           {/*Close Button*/}
-          {is_demonstation && 
+          {is_demonstration && 
             <RisingDiv 
               style={styles.close_button}
-              onPress={()=>{props.removeCallback?.()}}
+              onClick={()=>{removeSkillApp?.(skill_app)}}
             >{"✕"}</RisingDiv>
           }
 
           {/*Toggler*/}
-          {(hasFocus &&
+     {/*     {(hasFocus &&
             <CorrectnessToggler 
-              correct={correct}
-              incorrect={incorrect}
               style={styles.toggler}
-            />) ||
-          (showAuxilary &&
-            <SmallCorrectnessToggler 
               correct={correct}
               incorrect={incorrect}
-              style={styles.toggler_small}
-            />
+              onPress={toggleReward}
+            />) ||*/}
+          {
+          ((hasFocus || groupHasHover) &&
+            <div style={{
+              position: "absolute",
+              left: hasFocus ? -25 : -22,
+              width: 20,
+              height: "100%",
+              // backgroundColor: 'red',
+              // flex : 1,
+              display : "flex",
+              flexDirection : "column",
+              alignItems : "center",
+              // justifyContent : "center",
+              
+            }}
+            >
+              <SmallCorrectnessToggler 
+                style={{
+                  ...styles.toggler_small,
+                  color: 'blue',
+                  width: 20,
+                  height: 20,
+                  // backgroundColor:'purple',
+                  // paddingBottom:4
+                }}
+                text_color={(isImplicit && 'white') || 'black'}
+                correct={correct}
+                incorrect={incorrect}
+                onPress={toggleReward}
+              />
+              {/*Only Button*/}
+              {(correct && hasFocus && 
+              <div className={'translucentHoverable'} 
+                onClick={()=>setOnly(skill_app, !skill_app.only)}
+                style={{...styles.left_item,  fontSize:13,
+                  ...(hasOnly && {opacity: 1})
+                }}>
+                <div >{"⦿"}</div>
+              </div>
+              )}
+
+              {/*Stage Button*/}
+              {(correct && hasFocus && 
+              <div className={'translucentHoverable'} 
+                onClick={()=>hasStaged ? undoStaged() : setStaged(skill_app)}
+                style={{...styles.left_item, paddingBottom:2,
+                  ...(hasStaged && {opacity: 1})
+                }}>
+                <img style={{maxWidth:"75%", maxHeight:"75%", }} src={images.double_chevron}/>
+              </div>
+              )}
+            </div>
           )}
 
-          {(hasFocus &&
-            <RisingDiv
-              style={{
-                ...styles.stage_button,
-                ...(staged && styles.staged_selected),
-                ...(staged && {backgroundColor : right_border_color}),
-              }}
-            >
-            <DownChevron/>
-             {/* <div style={{position: "absolute", top:"-23%"}}>{"⌄"}</div>
-              <div>{"⌄"}</div>*/}
-            </RisingDiv>) ||
-            (staged && 
+          {/*Stage Icon*/}
+          {(hasStaged && correct && 
               <div style={{
                 ...styles.stage_icon,
-                ...(staged && {backgroundColor : right_border_color})
               }}>
-              <DownChevron/>
+              <img style={{maxWidth:"75%", maxHeight:"75%", }} src={images.double_chevron}/>
+              </div>
+          )}
+          {/*Only Icon*/}
+          {(hasOnly &&
+              <div style={{
+                ...styles.only_icon,
+              }}>
+              <div >{"⦿"}</div>
               </div>
           )}
         </RisingDiv>
@@ -310,23 +506,9 @@ const colors = {
 }
 
 const styles = {
-  handle: {
-    alignSelf: "center",
-    fontSize : 12,
-    color: 'rgba(0,0,0,.5)',
-    height : 8,
-    textAlign : 'center',
-    pointerEvents:'none',
-    userSelect: "none",
-    marginTop: -3,
-    marginBottom: 3,
-  },
+  
 
-  skill_app_background : {
-    position : 'absolute',
-    backgroundColor: 'rgba(80,80,120,.1)',
-    borderRadius : 10,
-  },
+  
   skill_app_group : {
     position : "absolute",
     display: "flex",
@@ -334,6 +516,24 @@ const styles = {
     backgroundColor: 'rgba(80,80,120,.1)',
     userSelect: "none",
     borderRadius : 5,
+  },
+
+  handle: {
+    // alignSelf: "end",
+    fontSize : 12,
+    color: 'rgba(0,0,0,.5)',
+    height : 8,
+    textAlign : 'center',
+    pointerEvents:'none',
+    userSelect: "none",
+    // marginTop: -3,
+    // marginBottom: 3,
+  },
+
+  skill_app_background : {
+    position : 'absolute',
+    backgroundColor: 'rgba(80,80,120,.1)',
+    borderRadius : 10,
   },
 
   skill_app_scroll_container : {
@@ -396,6 +596,7 @@ const styles = {
     float : 'left',
     fontSize : 18,
     padding: 2,
+    paddingLeft: 4,
     fontFamily : "Geneva",
     fontWeight: 'bold',
     overflow: "hidden",
@@ -430,14 +631,29 @@ const styles = {
     marginTop:0,
   },
 
-  toggler: {
-    position : "absolute",
-    left : -24,
+  left_item : {
+    width:20,
+    height:20,
+    position:'relative',
+    display:"flex",
+    justifyContent : "center",
+    alignItems : "center",
+    // backgroundColor : 'grey',
   },
 
+  // toggler: {
+  //   position : "absolute",
+  //   left : -24,
+  // },
+
   toggler_small: {
-    position : "absolute",
-    left : -22,
+    width:20,
+    height:20,
+    position:'relative',
+    display:"flex",
+    justifyContent : "center",
+    alignItems : "center",
+    // left : -22,
   },
 
   stage_button : {
@@ -457,23 +673,57 @@ const styles = {
     // fontWeight: 'bold',
   },
 
+  only_icon : {
+    display : "flex",
+    position : "absolute",
+    width : 7,
+    height : 8,
+    alignContent: "center",
+    justifyContent: "center",
+    // left: 0,
+    right: 10,
+    top:0,
+    opacity:.6,
+    fontSize: 6
+  },
+
   stage_icon : {
     display : "flex",
     position : "absolute",
     width : 7,
     height : 8,
-    fontSize : 9,
-    top: null,
     alignContent: "center",
     justifyContent: "center",
-    left:-2,
-    bottom: -2,
-    paddingBottom:3,
-    borderRadius: 10,
-    backgroundColor: colors.c_bounds//"limegreen"//'dodgerblue',
-
-    // fontWeight: 'bold',
+    // left: -.5,
+    // bottom: -1.5,
+    right: 2,
+    opacity:.6,
   },
+
+  feedback_counters: {
+    display: "flex",
+    flexDirection: "row",
+    fontSize: 10,
+    flex: 1,
+    padding: 3,
+    borderRadius : 10
+  },
+
+  counter_container: {
+    height: 10,
+    backgroundColor:'rgba(235,235,235,1)',
+    marginLeft: 1.5,
+    marginRight: 1.5,
+    borderRadius : 5,
+    display:"flex",
+    flexDirection:"row",
+    alignItems:"center",
+    justifyItems:"center",
+    filter: 'drop-shadow(0px .7px .7px rgba(60,60,60,.7))',
+    paddingLeft: 3, paddingRight: 3
+  },
+
+
   foci_button: {
     position: 'absolute',
     bottom : 4,

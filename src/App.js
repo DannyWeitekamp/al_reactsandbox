@@ -8,8 +8,9 @@ import RisingDiv from "./components/RisingDiv.js"
 import {CorrectnessToggler, SmallCorrectnessToggler} from "./components/CorrectnessToggler.js"
 import {SkillAppGroup, DownChevron} from "./components/SkillAppCard.js"
 import {Graph} from "./graph.js"
-import useStore, {test_state} from "./globalstate.js"
+import {useStore, useChangedStore, test_state, test_skill_applications} from "./globalstate.js"
 import MyZustandTest from "./rustlandTest.js"
+import {shallowEqual} from "./utils.js"
 
 
 
@@ -17,10 +18,26 @@ import MyZustandTest from "./rustlandTest.js"
 
 
 function App({state, ...props}) {
-  let [skill_apps, addSkillApp, removeSkillApp] = useStore((state) => [state.skill_apps, state.addSkillApp, state.removeSkillApp]);
+  // console.log("RERENDER APP")
 
+  const cmp_skill_apps = (o,n) =>{
+    console.log(Object.keys(o), Object.keys(n), Object.keys(o) == Object.keys(n))
+    return Object.keys(o) == Object.keys(n)
+  }
 
-  // let [skill_apps, setSkillApps] = useState(props.skill_apps || test_skill_applications)
+  let [_, skill_apps, addSkillApp, removeSkillApp, setSkillApps, setStaged, incTransactionCount, setFocus] = useChangedStore(
+    ["@transaction_count", "skill_apps", "addSkillApp", "removeSkillApp", "setSkillApps", "setStaged", "incTransactionCount", "setFocus"],
+  )
+
+  console.log("RERENDER APP", skill_apps)
+  // OnMount
+  useEffect(() =>{
+    let skill_apps = test_skill_applications
+    setSkillApps(skill_apps)
+    incTransactionCount()
+    console.log("ON MOUNT", Object.values(skill_apps)[0])
+  }, [])
+
   state = state || test_state
 
   let skill_apps_by_sel = {}
@@ -30,54 +47,20 @@ function App({state, ...props}) {
     skill_apps_by_sel[sa.selection] = lst
   }
 
+  
+  
+
   let ref = useRef(null)
-  
-
-  let demoCallback = (skill_app) =>{
-    addSkillApp(skill_app)
-  }
-
-  let [focus, setFocus] = useState({"sel" : "C", "index" : 1})
-  let [staged, setStaged] = useState({"sel" : "C", "index" : 1})
-
-  // Make skill application groups
-  let skill_app_groups = []  
-  for (let [sel, skill_apps] of Object.entries(skill_apps_by_sel)){
-    let elem = state[sel]
-    skill_app_groups.push(
-      <SkillAppGroup
-        parentRef={ref} 
-        x={elem.x+elem.width*.9}
-        y={elem.y-20}
-        sel={sel} 
-        focus_index={focus.sel==sel ? focus.index : -1}
-        staged_index={staged.sel==sel ? staged.index : -1}
-        skill_apps={skill_apps}
-        key={"card"+sel}
-        focusCallback={setFocus}
-    />)
-  }
-
-  
 
   // Make interface element overlays
   let elem_overlays = []
   for (let [sel, elem] of Object.entries(state)){
-    let showing_index = focus.sel==sel ? focus.index : 0
-    let sa = skill_apps_by_sel[sel]?.[showing_index] 
-    let isStaged = staged.sel==sel;
-    let hasFocus = focus.sel==sel;
     const overlay_type = overlay_element_types[elem.type]
     elem_overlays.push(
       React.createElement(overlay_type, {
-        skill_app: sa,
+        sel:sel,
         elem: elem,
-        isStaged : isStaged,
-        hasFocus : hasFocus,
-        isFociMode : false,
-        isFociSelected : false,
-        key : "proposal"+sel,
-        demoCallback : demoCallback
+        key : "overlay_element_"+sel,
       })
     )
   }
@@ -85,14 +68,12 @@ function App({state, ...props}) {
   return (
       <div 
         ref={ref}
-
+        onClick={(e)=>{setFocus(null)}}
         style={{
           position : "relative",
           display:'flex',
           flexDirection: 'row',
-          // justifyContent : "center",
-          // alignItems : "center",
-          backgroundColor : '#eeeedc',
+          // backgroundColor : '#eeeedc',
           width:1000,
           height:1000
       }}>
@@ -104,9 +85,10 @@ function App({state, ...props}) {
 
         <MyZustandTest/>
         
-        <div style={{position:"absolute", top:340, left:400, zIndex: 10}} >
+        {/*<div style={{position:"absolute", top:340, left:400, zIndex: 10}} >
           {skill_app_groups}
-        </div>
+        </div>*/}
+        <SkillAppCardLayer parentRef={ref} state={state} style={{position:"absolute", top:340, left:400, zIndex: 10}}/>
 
         <div style={{position:"absolute", top:340, left:400}} >
           {elem_overlays}
@@ -127,9 +109,50 @@ const images = {
   double_chevron : require('./img/double_chevron_300x400.png')
 };
 
+const SkillAppCardLayer = ({parentRef, state, style}) => {
 
 
-function OverlayBounds({style, children, elem, color, hasFocus, isStaged}){
+  let [selectionsWithSkillApps] = useChangedStore(
+    [[(s) => {
+      let used = []
+      for (let [k,v] of Object.entries(s.sel_skill_app_ids) ){
+        if(v?.length > 0){used.push(k)}
+      }
+      used.sort();
+      return used
+    },
+    (o,n) => {
+      return shallowEqual(o, n)
+    }
+    ]],
+  )
+
+  console.log(selectionsWithSkillApps)
+  // Make skill application groups
+  let skill_app_groups = []  
+  for (let sel of selectionsWithSkillApps){
+    let elem = state[sel]
+    skill_app_groups.push(
+      <SkillAppGroup
+        sel={sel} 
+        parentRef={parentRef} 
+        x={elem.x+elem.width*.9} y={elem.y-20}
+        key={sel+"_skill_app_group"}
+    />)
+  }
+
+  return (
+    <div style={{...style}} >
+        {skill_app_groups}
+    </div>
+  )
+
+
+}
+
+
+
+function OverlayBounds({style, children, elem, color, hasFocus, hasStaged,...props}){
     return (      
       <motion.div  style= {{
         ...styles.overlay_bounds,
@@ -141,9 +164,11 @@ function OverlayBounds({style, children, elem, color, hasFocus, isStaged}){
         },
         ...style,
         borderWidth: (hasFocus && 8) || 4,
-        borderColor: color,//(hasFocus && "rgba(143,40,180, .7)") || "gray",
-      }}>
-        {isStaged &&
+        borderColor: color,
+      }}
+      {...props}
+      >
+        {hasStaged &&
           <img style ={styles.stage_image} src={images.double_chevron} />
         }
         {children}
@@ -156,38 +181,65 @@ function skillAppExtractProps(skill_app){
   let incorrect = skill_app?.reward < 0 ?? false;
   let isDemo = skill_app?.is_demonstration ?? false
 
-  let color = (correct && colors.correct_color) ||
+  let color = //(isDemo && colors.demo_color) || 
+              (correct && colors.correct_color) ||
               (incorrect && colors.incorrect_color) ||
               (colors.default_color)
   let input = skill_app?.input ?? ""
   return {correct, incorrect, isDemo, color, input}
 }
 
+const getOverlaySkillApp = (sel) =>{
+  return [(s)=>{
+      let skill_app;
+      if(s?.focus_sel==sel){
+        skill_app = s?.skill_apps[s.focus_id]
+      }else if(s?.staged_sel==sel){
+        skill_app = s?.skill_apps[s.staged_id]
+      }
+
+      if(!skill_app){
+        let skill_app_ids = s.sel_skill_app_ids?.[sel]
+        if(skill_app_ids?.length > 0){
+          skill_app = s.skill_apps[skill_app_ids[0]]
+        }
+      }
+      return [skill_app, s.staged_id == skill_app?.id]
+    },
+      ([o,os],[n,ns])=>{
+        return n?.id == o?.id && n?.input == o?.input && n?.reward == o?.reward && os == ns
+    }]
+
+}
+
+const genDemo = (sel, action_type, input) =>{
+  let demo = {
+    selection: sel,
+    action_type : action_type,
+    input : input,
+    is_demonstration : true,
+    reward : 1,
+  } 
+  return demo
+}
+
 function TextFieldOverlay({
-    skill_app, elem, isStaged, hasFocus,
-    demoCallback}) {
+    sel, elem,
+  }) {
+
+  const ref = useRef(null);
+  const did_change = useRef(null);
+  const demo_app_id = useRef(null);
+
+  let [[skill_app, hasStaged], hasFocus, addSkillApp, removeSkillApp, setInput, setFocus] = useChangedStore(
+    [getOverlaySkillApp(sel), `@focus_sel==${sel}`, "addSkillApp", "removeSkillApp", "setInput", "setFocus"],
+  )
 
   let {correct, incorrect, isDemo, color, input} = skillAppExtractProps(skill_app)
 
+  let text = input || ""
+  let L = Math.min(text.length || 1, 8)
 
-  let text = input
-  let L = (text.length || 1)
-
-  //Remember the value before we gained focus so it can be restored
-  // if no change 
-  const prevText = useRef(null);
-  const ref = useRef(null);
-  const did_change = useRef(null);
-
-  const [textLen, setTextLen] = useState(Math.min(L,8)||1)
-
-  useEffect(() =>{
-    ref.current.value = text
-    prevText.current = text
-    did_change.current = false
-  }, [])
-
-  L = Math.max(textLen,1)
   let mindim = Math.min(elem.width, elem.height)
   let maxdim = Math.max(elem.width, elem.height)
   let fontSize = Math.min(mindim, maxdim/((L-1)/2 + 1))
@@ -195,62 +247,84 @@ function TextFieldOverlay({
   fontSize *= .9
 
   return (
-    <OverlayBounds {...{elem, color, hasFocus, isStaged}}>
+    <OverlayBounds {...{elem, color, hasFocus, hasStaged}}>
       <textarea 
         className={"scrollable"}
+        key={sel}
         style = {{
            ...styles.textfield,
            fontSize : fontSize,
-           // color: color,
          }}
-          type="text"
-          spellCheck="false"
-          ref={ref}
-          onFocus={(e) => {
-            ref.current.value=""
-            did_change.current=false
-            setTextLen(1)
-          }}
-          onBlur={(e) => {
-            if(did_change.current){
-              console.log("DEMO", ref.current.value)
-              prevText.current = ref.current.value
-              let new_skill_app = {
-                selection: skill_app.selection,
-                action_type : "UpdateTextField",
-                input : ref.current.value,
-                is_demonstration : true,
-                reward : 1,
-              }
-              demoCallback(new_skill_app)
-              // submitDemoCallback?.()  
-            }
-            e.target.value = prevText.current
-            setTextLen(Math.min(prevText.current.length,8))
-          }}
-          onChange={(evt)=>{
-            did_change.current = ref.current.value != ""
-            let new_len = Math.min(ref.current.value.length,8) 
-            if(new_len != textLen){ setTextLen(new_len)}
-          }}
-          onKeyPress={(evt)=>{
-            if(evt.key=="Enter" && !evt.shiftKey){ ref.current.blur() }
-          }}
+        spellCheck="false"
+        ref={ref}
+        value={text}
+        onFocus={(e) => {
+          console.log("ON focus")
+          ref.current.value=""
+          if(demo_app_id.current){
+            setInput(skill_app, ref.current.value)    
+          }
+        }}
+        onBlur={(e) => {
+          console.log("BLUR", demo_app_id.current, skill_app?.id)
+          ref.current.value=skill_app?.input ?? ""
+          if(demo_app_id.current && skill_app?.input.length==0){
+            removeSkillApp(skill_app)
+          }
+          demo_app_id.current = null
+
+        }}
+        onChange={(e)=>{
+          console.log("On CHANGE", e.target.value)
+          did_change.current = ref.current.value != ""
+
+          if(!demo_app_id.current){
+            let new_skill_app = genDemo(sel, "UpdateTextField", e.target.value)
+            addSkillApp(new_skill_app)
+            setFocus(new_skill_app)
+            
+            demo_app_id.current = new_skill_app.id
+          }else{
+            console.log(">>", text, e.target.value)
+            setInput(skill_app, e.target.value)  
+          }
+        }}
+        onKeyPress={(evt)=>{
+          if(evt.key=="Enter" && !evt.shiftKey){ ref.current.blur() }
+        }}
+
         />
     </OverlayBounds>
   )
 }
 
 function ButtonOverlay({
-    skill_app, elem,
-    color, isDemo, isStaged, hasFocus,
-    submitDemoCallback}) {
+    sel, elem,
+  }) {
+
+  let [[skill_app,hasStaged], hasFocus, addSkillApp, removeSkillApp, setInput, setFocus] = useChangedStore( 
+    [getOverlaySkillApp(sel), `@focus_sel==${sel}`, "addSkillApp", "removeSkillApp", "setInput", "setFocus"]
+  )
+
+  let {correct, incorrect, isDemo, color, input} = skillAppExtractProps(skill_app)
+
   return (
-    <OverlayBounds {...{elem, color, hasFocus, isStaged}}>
+    <OverlayBounds {...{elem, color, hasFocus, hasStaged}}
+      onClick={(e)=>{
+        console.log("BUTTON")
+        if(!skill_app){
+          let new_skill_app = genDemo(sel,"PressButton", -1)
+          setFocus(new_skill_app)
+          addSkillApp(new_skill_app)  
+        }
+      }}
+    >
+    {skill_app && 
       <img 
         style ={{...styles.button_image}}
-        src={images.tap} 
+        src={images.tap}
       />
+    }
     </OverlayBounds>
   )
 
@@ -263,6 +337,7 @@ const overlay_element_types = {
 }
 
 const colors = {
+  demo_color : 'rgba(0,90,156,.7)',//'dodgerblue',
   correct_color : 'rgba(50,205,50,.7)',//'limegreen',
   incorrect_color : 'rgba(255,0,0,.7)',//'red',
   default_color : 'rgba(128,128,128,.7)',//'gray',
@@ -307,6 +382,7 @@ const styles = {
     position : 'absolute',
     borderStyle: "solid",//(!isDemo && color) || 'dodgerblue',//(hasFocus && "rgba(143,40,180, .7)") || "gray",
     borderRadius: 10,
+    // backgroundColor : 'grey'
   },
   stage_image : {
     flex:1,

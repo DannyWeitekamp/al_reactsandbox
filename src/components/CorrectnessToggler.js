@@ -6,9 +6,10 @@ import RisingDiv from "./RisingDiv.js"
 
 const ONLY_HOLD_TIME = .2
 
-let CorrectnessTogglerKnob = ({children, style, is_hover, hasFocus, force_show_other, inner_text, is_small, ...props}) => {
-  let text_color = ( (hasFocus || force_show_other) && 'black') ||
-                    'rgba(0,0,0,.4)'
+let CorrectnessTogglerKnob = ({children, style, is_hover, hasFocus, force_show_other, inner_text, is_small, text_color, ...props}) => {
+  text_color =  text_color || 
+								((hasFocus || force_show_other) && 'black') ||
+                'rgba(0,0,0,.4)'
 
   const springConfig = {
     stiffness: props?.stiffness ?? ((hasFocus && 1200) || 2000),
@@ -80,12 +81,15 @@ const togglerMouseEvents = {
 
 
 
-export let SmallCorrectnessToggler = ({style, onPress,onOnly,...props}) =>{
-	const [correct,setCorrect] = useState(props.correct || false)
-	const [incorrect,setIncorrect] = useState(props.incorrect || false)
+export let SmallCorrectnessToggler = ({style, correct, incorrect, onPress,onOnly, text_color,...props}) =>{
+	const [state_correct,setCorrect] = useState(props.correct || false)
+	const [state_incorrect,setIncorrect] = useState(props.incorrect || false)
 	const [only,setOnly] = useState(props.only || false)
 	const [is_hover,setIsHover] = useState(false)
-	const [is_pressed, setIsPressed] = useState(false)
+
+	correct = correct | state_correct
+	incorrect = incorrect | state_incorrect
+	// const [is_pressed, setIsPressed] = useState(false)
 	const undef = !correct && !incorrect;
 
 	const pressedRef = useRef(false)
@@ -112,9 +116,10 @@ export let SmallCorrectnessToggler = ({style, onPress,onOnly,...props}) =>{
 	// console.log("<<", style)
 	// let text = inner_text={((correct  || undef)
 	return (
-		<div style = {{...style,  width:30, position:'absolute'}}>
+		<div style = {{width:30, position:'absolute',  ...style}}>
 			<CorrectnessTogglerKnob
           inner_text={text}
+          text_color={text_color}
           is_hover={is_hover}
           hasFocus={true}
           force_show_other={false}
@@ -124,36 +129,36 @@ export let SmallCorrectnessToggler = ({style, onPress,onOnly,...props}) =>{
           ...(incorrect && styles.incorrect_selected),
           ...(correct && styles.correct_selected)}}
 			>
-			{(is_pressed || only) && <OnlyBubble/>}
+			{/*{(is_pressed || only) && <OnlyBubble/>}*/}
 			</CorrectnessTogglerKnob>
 			<div 
         style={styles.touch_area}
-        onMouseDown={(e)=>{
-        	console.log(e)
-        	e.stopPropagation();
-        	setIsPressed(true)
-        	pressedRef.current = true
+        // onMouseDown={(e)=>{
+        // 	console.log(e)
+        // 	e.stopPropagation();
+        // 	setIsPressed(true)
+        // 	pressedRef.current = true
 
-        	setTimeout(()=>{
-        		if(pressedRef.current){
-        			pressedRef.current = false
-          		setIsPressed(false);
-          		setOnly(true);	
-          		setCorrect(true)
-          		setIncorrect(false)
-          		onOnly?.();
-          	}
-        	},ONLY_HOLD_TIME*1000)
-        }}
-        onMouseUp={(e)=>{
-        	e.stopPropagation();
-        	if(pressedRef.current){
-        		props.onPress?.() ?? defaultToggle()
-          	setIsPressed(false)	
-        	}
-        	pressedRef.current = false
-        }}
-        onClick={(e)=>{e.stopPropagation()}}
+        // 	setTimeout(()=>{
+        // 		if(pressedRef.current){
+        // 			pressedRef.current = false
+        //   		setIsPressed(false);
+        //   		setOnly(true);	
+        //   		setCorrect(true)
+        //   		setIncorrect(false)
+        //   		onOnly?.();
+        //   	}
+        // 	},ONLY_HOLD_TIME*1000)
+        // }}
+        // onMouseUp={(e)=>{
+        // 	e.stopPropagation();
+        // 	if(pressedRef.current){
+        // 		onPress?.() ?? defaultToggle()
+        //   	setIsPressed(false)	
+        // 	}
+        // 	pressedRef.current = false
+        // }}
+        onClick={(e)=>{e.stopPropagation();onPress?.()}}
         onMouseEnter={()=>{setIsHover(true);}}
         onMouseLeave={()=>setIsHover(false)}
       />
@@ -191,8 +196,8 @@ export class CorrectnessToggler extends Component {
     }else{
       next_state = {correct:!correct,incorrect:!incorrect,hover_fresh:false}
     }
-    if(this.props.toggleCallback){
-      this.props.toggleCallback(next_state)
+    if(this.props.onPress){
+      this.props.onPress(next_state)
       this.setState({hover_fresh:false})
     }else{
       this.setState(next_state)
@@ -332,9 +337,9 @@ const styles = {
 
   feedback_button:{
     userSelect: "none",
-    position: 'absolute',
+    // position: 'absolute',
     fontSize : 12,
-    flex: 1,
+    // flex: 1,
     borderRadius: 40,
     width:15,
     height:15,
@@ -366,9 +371,9 @@ const styles = {
   },
 
   touch_area: {
-	width:30,
+		width:30,
     height:24,
-    position:'relative',
+    position:'absolute',
     alignItems:"center",
     top: -2,//-4,
     left: -8,
