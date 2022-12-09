@@ -1,3 +1,4 @@
+
 import React, { Component, createRef, useState, useRef } from 'react'
 import { motion, useMotionValue, useSpring } from "framer-motion";
 // import * as Animatable from 'react-native-animatable';
@@ -81,11 +82,11 @@ const togglerMouseEvents = {
 
 
 
-export let SmallCorrectnessToggler = ({style, correct, incorrect, onPress,onOnly, text_color,...props}) =>{
+export let SmallCorrectnessToggler = ({style, correct, incorrect, onPress, onOnly, text_color,...props}) =>{
 	const [state_correct,setCorrect] = useState(props.correct || false)
 	const [state_incorrect,setIncorrect] = useState(props.incorrect || false)
 	const [only,setOnly] = useState(props.only || false)
-	const [is_hover,setIsHover] = useState(false)
+	const [is_hover, setIsHover] = useState(false)
 
 	correct = correct | state_correct
 	incorrect = incorrect | state_incorrect
@@ -105,9 +106,16 @@ export let SmallCorrectnessToggler = ({style, correct, incorrect, onPress,onOnly
 		setOnly(false)
 	}
 
+  let force_corr = (!correct && !incorrect) && is_hover == "right"
+  let force_incorr = (!correct && !incorrect) && is_hover == "left"
+
 	let text = (correct && "✔") || 
 	           (incorrect && "✖") ||
+             (force_corr && "✔") || 
+             (force_incorr && "✖") ||
 	           "━"
+
+
 
 	let bg_color = (correct && colors.c_knob_back) || 
 	               (incorrect && colors.i_knob_back) ||
@@ -131,35 +139,16 @@ export let SmallCorrectnessToggler = ({style, correct, incorrect, onPress,onOnly
 			>
 			{/*{(is_pressed || only) && <OnlyBubble/>}*/}
 			</CorrectnessTogglerKnob>
+      <div 
+        style={styles.touch_area_left}
+        onClick={(e)=>{e.stopPropagation();onPress?.(force_corr, force_incorr)}}
+        onMouseEnter={()=>{setIsHover('left');}}
+        onMouseLeave={()=>setIsHover(false)}
+      />
 			<div 
-        style={styles.touch_area}
-        // onMouseDown={(e)=>{
-        // 	console.log(e)
-        // 	e.stopPropagation();
-        // 	setIsPressed(true)
-        // 	pressedRef.current = true
-
-        // 	setTimeout(()=>{
-        // 		if(pressedRef.current){
-        // 			pressedRef.current = false
-        //   		setIsPressed(false);
-        //   		setOnly(true);	
-        //   		setCorrect(true)
-        //   		setIncorrect(false)
-        //   		onOnly?.();
-        //   	}
-        // 	},ONLY_HOLD_TIME*1000)
-        // }}
-        // onMouseUp={(e)=>{
-        // 	e.stopPropagation();
-        // 	if(pressedRef.current){
-        // 		onPress?.() ?? defaultToggle()
-        //   	setIsPressed(false)	
-        // 	}
-        // 	pressedRef.current = false
-        // }}
-        onClick={(e)=>{e.stopPropagation();onPress?.()}}
-        onMouseEnter={()=>{setIsHover(true);}}
+        style={styles.touch_area_right}
+        onClick={(e)=>{e.stopPropagation();onPress?.(force_corr, force_incorr)}}
+        onMouseEnter={()=>{setIsHover('right');}}
         onMouseLeave={()=>setIsHover(false)}
       />
 	       
@@ -370,14 +359,24 @@ const styles = {
     // ...gen_shadow(5)
   },
 
-  touch_area: {
-		width:30,
+  touch_area_left: {
+		width:18,
     height:24,
     position:'absolute',
     alignItems:"center",
-    top: -2,//-4,
+    top: -2,//-4,touch_area: 
     left: -8,
     // backgroundColor: 'rgba(0,255,0,.2)',	
+  },
+  touch_area_right: {
+    width:11,
+    height:24,
+    // right : 15,
+    position:'absolute',
+    alignItems:"center",
+    top: -2,//-4,touch_area: 
+    left: 10,
+    // backgroundColor: 'rgba(0,0,255,.2)',  
   },
   only_bubble: {
   	position : "absolute",

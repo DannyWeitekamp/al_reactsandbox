@@ -70,13 +70,13 @@ const test_state = {
 
 const test_skill_applications = [
         {"selection" : "A", "action" : "UpdateTextField", "input" : "6",
-          "how": "Add(?,?,?) ","reward": -1, only: false},
+          "how": "Add(?,?,?) ","reward": 0, only: false},
 
         { "selection" : "B", "action" : "UpdateTextField", "input" : "long long long long long long long long sdf sdf sjif sd",
-          "how": "Add(?,?,?)", "reward": -1},
+          "how": "Add(?,?,?)", "reward": 0},
         { "selection" : "B", "action" : "UpdateTextField", "input" : "8x + 4 + 7 + 9 + 2+6+5",
-          "how": "x0 + x1 + x2", "reward": 1,
-          foci_of_attention: ["E","F"]},
+          "how": "x0 + x1 + x2", "reward": 0,
+          arg_foci: ["E","F"]},
         { "selection" : "B", "action" : "UpdateTextField", "input" : "9",
           "how": "Add(?,?,?)", "reward": 0},
         { "selection" : "B", "action" : "UpdateTextField", "input" : "5",
@@ -84,22 +84,22 @@ const test_skill_applications = [
         { "selection" : "B", "action" : "UpdateTextField", "input" : "12",
           "how": "Add(?,?,?)", "reward": 0},
         { "selection" : "B", "action" : "UpdateTextField", "input" : "16x - 8",
-          "how": "Subtract(?,Add(?,?))", "reward": 1},
+          "how": "Subtract(?,Add(?,?))", "reward": 0},
 
         { "selection" : "C", "action" : "UpdateTextField", "input" : "8x + 4",
-          "how": "x0 + x1 + x2", "reward": 1,
-          foci_of_attention: ["E","F"]},
+          "how": "x0 + x1 + x2", "reward": 0,
+          arg_foci: ["E","F"]},
         { "selection" : "C", "action" : "UpdateTextField", "input" : "9",
-          "how": "Add(?,Subtract(?,?,?),?, Subtract(?,?,?))", "reward": -1},
+          "how": "Add(?,Subtract(?,?,?),?, Subtract(?,?,?))", "reward": 0},
         { "selection" : "C", "action" : "UpdateTextField", "input" : "5",
-          "how": "Add(?,?,?)", "reward": -1},
+          "how": "Add(?,?,?)", "reward": 0},
         { "selection" : "C", "action" : "UpdateTextField", "input" : "12",
-          "how": "Add(?,?,?)", "reward": -1},
+          "how": "Add(?,?,?)", "reward": 0},
         { "selection" : "C", "action" : "UpdateTextField", "input" : "16x - 8",
-          "how": "Subtract(?,Add(?,?))", "reward": 1},
+          "how": "Subtract(?,Add(?,?))", "reward": 0},
 
         // { "selection" : "Button", "action" : "PressButton", "input" : "-1",
-        //   "how": "-1", "reward": -1},
+        //   "how": "-1", "reward": 0},
 ]
 
 for(let sa of test_skill_applications){
@@ -138,7 +138,7 @@ const makeUndoStagedChanges = (state) => {
   while(stack.length > 0){
 
     changes = {...stack.pop(), stage_undo_stack:stack}
-    if(state.skill_apps[changes.staged_id].reward > 0){
+    if(state.skill_apps[changes.staged_id]?.reward > 0){
       okay = true
       break
     }
@@ -146,7 +146,7 @@ const makeUndoStagedChanges = (state) => {
   if(!okay){
     console.log("STACK EXHAUSTED")
     for(let skill_app of Object.values(state.skill_apps)){
-      if(skill_app.reward > 0){
+      if(skill_app?.reward > 0){
         console.log("+++", skill_app.input)
         changes = {staged_id: skill_app.id, staged_sel:skill_app.selection, stage_undo_stack:[]}
         break
@@ -169,13 +169,15 @@ const useStore = create((set,get) => ({
   staged_sel : "",
   stage_undo_stack : [],
   only_count : 0,
+  current_tab : "",
 
-
+  foci_mode : false,
 
 
   /*** Controls ***/
 
   setFocus: (skill_app) => set((state) => { 
+    console.log("setFocus", skill_app?.selection)
     return {focus_sel : skill_app?.selection ?? "", focus_id : skill_app?.id ?? ""}
   }),
 
@@ -199,7 +201,59 @@ const useStore = create((set,get) => ({
     return {transaction_count : state.transaction_count + 1}
   }),
 
+  setCurrentTab : (name) => set((state) => { 
+    // console.log("current_tab!!", name)
+    return {current_tab : name}
+  }),
 
+  setFociMode : (foci_mode) => set((state) => {
+    return {'foci_mode' : foci_mode}
+  }),
+
+  setHasFociSelect : (sel, hasFociSelect) => set((state) => { 
+    if(state.focus_id == ""){ return {}}
+
+    let focus_app = {...state.skill_apps?.[state.focus_id]}
+    let arg_foci = focus_app?.arg_foci || []
+    console.log(arg_foci, arg_foci.filter((x)=>x!==sel))
+    if(!hasFociSelect){
+      console.log(arg_foci, arg_foci.filter((x)=>x!==sel))
+      focus_app.arg_foci = arg_foci.filter((x)=>x!==sel)
+    }else if(!arg_foci.includes(sel)){
+      focus_app.arg_foci = [...arg_foci, sel]
+    }else{
+      // No Change
+      return {}
+    }
+    return {'skill_apps' : {...state.skill_apps, [state.focus_id] :  focus_app}}
+  }),
+
+
+  /*** Events ***/
+
+
+  clickAway : () => { let state = get();
+    console.log('CLICK AWAY')
+    if(!state.foci_mode){
+      console.log("CLICK AWAY")
+      state.setFocus(null)  
+    }
+  },
+
+  toggleFoci : (sel) => { let state = get();
+    let selected = state.skill_apps?.[state.focus_id]?.arg_foci?.includes(sel) ?? false
+    state.setHasFociSelect(sel, !selected)
+  },
+
+  /*** Getters ***/
+
+  // getFocusedSkillApp : (name) => get((state) => {
+  //   return state?.skill_apps?.[state.focus_id]
+  // }),
+
+  // getHoverSkillApp : (name) => get((state) => { 
+  //   return state?.skill_apps?.[state.hover_id]
+  // }),
 
   /*** Adding + Removing Skill Applications ***/
 
@@ -308,12 +362,12 @@ const useChangedStore = (args, do_update=true) =>{
       if(accessor.includes("==")){
         let [a,val] = accessor.split("==")
         a = a.split(".")
-        return (s) => (a.reduce((o,p) => o ? o[p] : null, s) == val)
+        return (s) => (a.reduce((o,p) => o?.[p], s) == val)
       }
       if(accessor.includes("!=")){
         let [a,val] = accessor.split("!=")
         a = a.split(".")
-        return (s) => (a.reduce((o,p) => o ? o[p] : null, s) != val)
+        return (s) => (a.reduce((o,p) => o?.[p], s) != val)
       }
       return accessor.split(".")
     }else{

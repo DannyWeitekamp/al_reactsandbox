@@ -36,13 +36,11 @@
   opacity: 1;
 }
 
+.tab:hover {
+  background-color: darkgrey;
+}
 
-.BGHoverable {
-  background-color: 'transparent;';
-}
-.BGHoverable:hover {
-  background-color: 'grey';
-}
+
 
 
 *:focus {

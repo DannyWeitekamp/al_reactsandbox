@@ -16,6 +16,7 @@ const images = {
 
 
 
+
 const FeedbackCounters = ({sel, groupHasHover}) => {
   let [counts, isExternalHasOnly] = useChangedStore(
       [[(s)=>{
@@ -280,9 +281,9 @@ export function SkillAppCard({
         ...props}) {
   // let id = skill_app_id
   let [skill_app,            hasFocus,           hasStaged,    isExternalHasOnly,         
-      setFocus,   setHover, setReward, setStaged, undoStaged, setOnly, removeSkillApp] = useChangedStore(
+      setFocus,   setHover, setReward, setStaged, undoStaged, setOnly, removeSkillApp, setCurrentTab] = useChangedStore(
       [`@skill_apps.${id}`, `@focus_id==${id}`, `@staged_id==${id}`, `@only_count!=0`, 
-      "setFocus", "setHover", 'setReward', 'setStaged', 'undoStaged', 'setOnly', 'removeSkillApp']
+      "setFocus", "setHover", 'setReward', 'setStaged', 'undoStaged', 'setOnly', 'removeSkillApp', 'setCurrentTab']
   )
   // console.log("RERENDER CARD", skill_app.input)
   let text = skill_app.input || ""
@@ -291,6 +292,7 @@ export function SkillAppCard({
   let incorrect = skill_app?.reward < 0 || isExternalHasOnly
   let isImplicit = isExternalHasOnly && skill_app?.reward == 0;
   let hasOnly = skill_app.only
+  let sel = skill_app.selection
 
   let minHeight = (hasFocus && 60) || 20
   let maxHeight = (!hasFocus && 20)
@@ -319,7 +321,15 @@ export function SkillAppCard({
                             borderRightColor:right_border_color,
                             borderRightWidth:4})
 
-  const toggleReward = () =>{
+  const toggleReward = (force_corr, force_incorr) =>{
+    if(force_corr){
+      setReward(skill_app, 1)
+      return
+    }
+    if(force_incorr){
+      setReward(skill_app, -1)
+      return
+    }
     console.log("TOGGLE reward")
     if(skill_app.reward == 0){
       setReward(skill_app, 1)
@@ -336,8 +346,15 @@ export function SkillAppCard({
             if(!groupIsDragging.current){
               setFocus(skill_app)
             }
+            if(skill_app.is_demonstration){
+              setCurrentTab('demonstrate')
+            }else{
+              setCurrentTab('other')
+            }
             e.stopPropagation()
           }}
+          hoverCallback={(e)=>setHover({sel : sel, id: id})}
+          unhoverCallback={(e)=>setHover({id: ""})}
           style={{
             ...styles.skill_app_card,
             ...border_style,
@@ -423,10 +440,11 @@ export function SkillAppCard({
               {(correct && hasFocus && 
               <div className={'translucentHoverable'} 
                 onClick={()=>setOnly(skill_app, !skill_app.only)}
-                style={{...styles.left_item,  fontSize:13,
+                style={{...styles.left_item,  
                   ...(hasOnly && {opacity: 1})
                 }}>
                 <div >{"⦿"}</div>
+                <div style={styles.left_item_text}>only</div>
               </div>
               )}
 
@@ -434,10 +452,11 @@ export function SkillAppCard({
               {(correct && hasFocus && 
               <div className={'translucentHoverable'} 
                 onClick={()=>hasStaged ? undoStaged() : setStaged(skill_app)}
-                style={{...styles.left_item, paddingBottom:2,
+                style={{...styles.left_item, paddingBottom:2, color: "grey",
                   ...(hasStaged && {opacity: 1})
                 }}>
                 <img style={{maxWidth:"75%", maxHeight:"75%", }} src={images.double_chevron}/>
+                <div style={styles.left_item_text}>stage</div>
               </div>
               )}
             </div>
@@ -447,6 +466,7 @@ export function SkillAppCard({
           {(hasStaged && correct && 
               <div style={{
                 ...styles.stage_icon,
+                right: styles.stage_icon.right + (is_demonstration && 12)
               }}>
               <img style={{maxWidth:"75%", maxHeight:"75%", }} src={images.double_chevron}/>
               </div>
@@ -455,12 +475,53 @@ export function SkillAppCard({
           {(hasOnly &&
               <div style={{
                 ...styles.only_icon,
+                right: styles.only_icon.right + (is_demonstration && 12)
               }}>
               <div >{"⦿"}</div>
               </div>
           )}
         </RisingDiv>
     )
+}
+
+export function SkillAppCardLayer({parentRef, state, style}){
+  let [selectionsWithSkillApps, foci_mode] = useChangedStore(
+    [[(s) => {
+      let used = []
+      for (let [k,v] of Object.entries(s.sel_skill_app_ids) ){
+        if(v?.length > 0){used.push(k)}
+      }
+      used.sort();
+      return used
+    },
+    (o,n) => {
+      return shallowEqual(o, n)
+    }
+    ],"@foci_mode"] 
+  )
+
+  console.log("RERENDER LAYER", foci_mode)
+
+  // Make skill application groups
+  let skill_app_groups = []  
+  for (let sel of selectionsWithSkillApps){
+    let elem = state[sel]
+    skill_app_groups.push(
+      <SkillAppGroup
+        sel={sel} 
+        parentRef={parentRef} 
+        x={elem.x+elem.width*.9} y={elem.y-20}
+        key={sel+"_skill_app_group"}
+    />)
+  }
+
+  return (
+    <div style={{...style}} >
+      {!foci_mode && skill_app_groups}
+    </div>
+  )
+
+
 }
 //"✎"
 //"↡"
@@ -634,11 +695,21 @@ const styles = {
   left_item : {
     width:20,
     height:20,
+    fontSize: 13,
+    marginTop : 0,
+    marginBottom : 2,
     position:'relative',
     display:"flex",
     justifyContent : "center",
     alignItems : "center",
+    flexDirection : "column"
     // backgroundColor : 'grey',
+  },
+  left_item_text : {
+    position:'absolute',
+    top:16,
+    color: "#333",
+    fontSize:6
   },
 
   // toggler: {

@@ -13,7 +13,7 @@ let gen_shadow = (x,kind='box') => {
 }
 
 
-let RisingDiv = ({children, style, innerRef,...props}) =>{
+let RisingDiv = ({children, style, innerRef, hoverCallback, unhoverCallback, ...props}) =>{
   const springConfig = {
     stiffness: props?.stiffness ?? 2000,
     damping: props?.damping ?? 50 
@@ -39,8 +39,8 @@ let RisingDiv = ({children, style, innerRef,...props}) =>{
   return (
     <motion.div 
       ref={innerRef}
-      onMouseEnter={() => {scale.set(hover_scale); shadow.set(hover_shadow)} } 
-      onMouseLeave={() => {scale.set(default_scale); shadow.set(default_shadow)}}
+      onMouseEnter={() => {scale.set(hover_scale); shadow.set(hover_shadow); hoverCallback?.()}} 
+      onMouseLeave={() => {scale.set(default_scale); shadow.set(default_shadow); unhoverCallback?.()}}
       whileHover={{ zIndex: 100 }}
         style={{
             ...style,
